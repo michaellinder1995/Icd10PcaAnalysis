@@ -146,6 +146,4 @@ def add_and_plot():
 
 # --- Startet den Flask Development Server ---
 if __name__ == '__main__':
-    # debug=True ist praktisch für Entwicklung, für Produktion ausschalten!
-    # host='0.0.0.0' macht den Server im lokalen Netzwerk erreichbar (optional)
-    app.run(debug=True, host='0.0.0.0')
+    app.run()

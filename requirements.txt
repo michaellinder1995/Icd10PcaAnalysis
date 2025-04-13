@@ -1,0 +1,8 @@
+Flask
+gunicorn
+pandas
+numpy
+sentence-transformers
+scikit-learn
+plotly
+# lxml # Optional, falls dein xml_parser lxml statt xml.etree.ElementTree verwendet
