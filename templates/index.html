@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ICD-10 F-Code Analyse</title>
+    <script src='https://cdn.plot.ly/plotly-3.0.1.min.js'></script>
+    <style>
+        body { font-family: sans-serif; margin: 20px; }
+        #inputSection { margin-bottom: 20px; padding: 15px; border: 1px solid #ccc; border-radius: 5px; background-color: #f9f9f9;}
+        label { display: block; margin-top: 10px; }
+        input[type="text"], textarea { width: 95%; padding: 8px; margin-top: 5px; border: 1px solid #ccc; border-radius: 3px; }
+        textarea { height: 80px; }
+        button { padding: 10px 15px; margin-top: 15px; background-color: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        button:hover { background-color: #0056b3; }
+        #plotDiv { width: 90%; height: 70vh; border: 1px solid #ddd; margin-top: 20px;}
+        #loadingIndicator, #errorIndicator { margin-top: 10px; font-weight: bold; display: none; /* Standardmäßig ausblenden */}
+        #loadingIndicator { color: #007bff; }
+        #errorIndicator { color: red; }
+    </style>
+</head>
+<body>
+
+    <h1>ICD-10 F-Code Analyse</h1>
+    <p>Visualisierung der textuellen Ähnlichkeit von ICD-10 F-Codes (Kapitel V) mittels Embeddings und PCA. Füge eine eigene Beschreibung hinzu, um ihre Position relativ zu den Standard-Codes zu sehen.</p>
+
+    <div id="inputSection">
+        <h2>Neue Beschreibung hinzufügen</h2>
+        <form id="inputForm">
+            <label for="person_name">Name der (fiktiven) Person:</label>
+            <input type="text" id="person_name" name="person_name" value="Person X">
+
+            <label for="disease_name">Fiktiver Krankheitsname:</label>
+            <input type="text" id="disease_name" name="disease_name" value="Syndrom Y">
+
+            <label for="disease_description">Symptom-/Krankheitsbeschreibung:</label>
+            <textarea id="disease_description" name="disease_description" required placeholder="Beschreibe hier die Symptome oder das Verhalten..."></textarea>
+
+            <button type="submit">Analyse aktualisieren</button>
+        </form>
+    </div>
+
+    <div id="loadingIndicator">Lade und berechne Plot...</div>
+    <div id="errorIndicator"></div>
+    <div id="plotDiv"></div>
+
+    <script>
+        const form = document.getElementById('inputForm');
+        const plotDiv = document.getElementById('plotDiv');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const errorIndicator = document.getElementById('errorIndicator');
+
+        // Funktion zum Anzeigen/Ausblenden der Indikatoren
+        function showLoading(isLoading) {
+            loadingIndicator.style.display = isLoading ? 'block' : 'none';
+            if (isLoading) errorIndicator.style.display = 'none'; // Fehlermeldung bei neuem Laden ausblenden
+        }
+
+        function showError(message) {
+            errorIndicator.textContent = `Fehler: ${message}`;
+            errorIndicator.style.display = 'block';
+            loadingIndicator.style.display = 'none';
+        }
+
+        // Funktion zum Rendern des Plots
+        function renderPlot(plotJsonString) {
+             errorIndicator.style.display = 'none'; // Alte Fehler ausblenden
+            try {
+                const plotData = JSON.parse(plotJsonString);
+                // Plotly.react ist effizienter für Updates als newPlot
+                Plotly.react(plotDiv, plotData.data, plotData.layout);
+                console.log("Plot aktualisiert.");
+            } catch (e) {
+                console.error("Fehler beim Parsen/Rendern des Plot-JSON:", e);
+                showError("Konnte die Plot-Daten nicht verarbeiten.");
+            }
+        }
+
+        // Initialen Plot beim Laden der Seite holen
+        function fetchInitialPlot() {
+            showLoading(true);
+            fetch('/get_initial_plot') // GET Anfrage an das Backend
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP Fehler ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success && data.plot_json) {
+                        renderPlot(data.plot_json);
+                    } else {
+                         throw new Error(data.error || "Unbekannter Fehler beim Holen des initialen Plots.");
+                    }
+                })
+                .catch(error => {
+                    console.error('Fehler beim Laden des initialen Plots:', error);
+                    showError(`Konnte initialen Plot nicht laden: ${error.message}`);
+                })
+                .finally(() => {
+                    showLoading(false);
+                });
+        }
+
+        // Event Listener für das Formular
+        form.addEventListener('submit', function(event) {
+            event.preventDefault(); // Verhindert Neuladen der Seite
+            showLoading(true);
+
+            const formData = {
+                person_name: document.getElementById('person_name').value,
+                disease_name: document.getElementById('disease_name').value,
+                disease_description: document.getElementById('disease_description').value
+            };
+
+            // Sende Daten an das Backend
+            fetch('/add_and_plot', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(formData),
+            })
+            .then(response => {
+                if (!response.ok) {
+                     // Versuche, Fehlerdetails aus der Antwort zu lesen
+                     return response.json().then(errData => {
+                         throw new Error(errData.error || `HTTP Fehler ${response.status}`);
+                     }).catch(() => {
+                         // Fallback, wenn keine JSON-Fehlermeldung kommt
+                         throw new Error(`HTTP Fehler ${response.status}`);
+                     });
+                }
+                return response.json();
+            })
+            .then(data => {
+                 if (data.success && data.plot_json) {
+                    renderPlot(data.plot_json);
+                } else {
+                     throw new Error(data.error || "Unbekannter Fehler beim Aktualisieren des Plots.");
+                }
+            })
+            .catch(error => {
+                console.error('Fehler beim Aktualisieren des Plots:', error);
+                 showError(`Konnte Plot nicht aktualisieren: ${error.message}`);
+            })
+            .finally(() => {
+                showLoading(false);
+            });
+        });
+
+        // Initialen Plot laden, wenn die Seite bereit ist
+        document.addEventListener('DOMContentLoaded', fetchInitialPlot);
+
+    </script>
+
+</body>
+</html>
