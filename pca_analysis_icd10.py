@@ -89,7 +89,7 @@ fig.update_layout(
 )
 
 #speichere plot
-html_filename = 'icd10_f_codes_plot_interaktiv.html'
+html_filename = 'index.html'
 
 try:
     fig.write_html(html_filename)
