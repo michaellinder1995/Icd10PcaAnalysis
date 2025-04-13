@@ -71,7 +71,6 @@ def get_initial_plot():
 
         # Konvertiere Plot in JSON, das von Plotly.js gelesen werden kann
         plot_json = pio.to_json(fig)
-        print(f"Plot json {plot_json}" )
         return jsonify(success=True, plot_json=plot_json)
 
     except Exception as e:
